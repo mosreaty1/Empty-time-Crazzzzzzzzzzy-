@@ -485,12 +485,12 @@
                 <div class="proxy-selector">
                     <label for="proxy-select">Proxy Server:</label>
                     <select id="proxy-select" onchange="changeProxy(this.value)">
-                        <option value="0">corsproxy.io (Recommended)</option>
-                        <option value="1">allorigins.win</option>
-                        <option value="2">cors.sh</option>
+                        <option value="0">codetabs.com (Best for video)</option>
+                        <option value="1">corsproxy.io</option>
+                        <option value="2">allorigins.win</option>
                         <option value="3">Direct (No Proxy)</option>
                     </select>
-                    <span style="font-size: 12px; color: rgba(255,255,255,0.5);">Try different proxy if stream fails</span>
+                    <button onclick="copyStreamUrl()" style="padding: 8px 15px; background: #e94560; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;">Copy URL for VLC</button>
                 </div>
 
                 <div class="now-playing" id="now-playing" style="display: none;">
@@ -887,20 +887,27 @@ http://maveniptv.net:80/live/ahmedELmetwally85/ah8759946/283476.m3u8`;
 
         // CORS Proxy options for HTTP streams on HTTPS pages
         const CORS_PROXIES = [
+            (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
             (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
             (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-            (url) => `https://proxy.cors.sh/${url}`,
-            (url) => url, // Direct (no proxy) - may not work on HTTPS pages
+            (url) => url, // Direct (no proxy)
         ];
         let currentProxyIndex = 0;
 
         function getProxiedUrl(url) {
-            // If already HTTPS, return as-is
-            if (url.startsWith('https://')) {
-                return url;
-            }
-            // Use CORS proxy for HTTP URLs (or direct if selected)
+            // Use CORS proxy for HTTP URLs
             return CORS_PROXIES[currentProxyIndex](url);
+        }
+
+        // Copy URL to clipboard for use in VLC
+        function copyStreamUrl() {
+            if (currentChannel) {
+                navigator.clipboard.writeText(currentChannel.url).then(() => {
+                    alert('Stream URL copied! Paste it in VLC Media Player:\n\nVLC > Media > Open Network Stream > Paste URL');
+                }).catch(() => {
+                    prompt('Copy this URL and open in VLC:', currentChannel.url);
+                });
+            }
         }
 
         // Video player
