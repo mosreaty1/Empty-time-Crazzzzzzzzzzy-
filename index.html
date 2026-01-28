@@ -298,10 +298,62 @@
             transform: translate(-50%, -50%);
             text-align: center;
             color: #e94560;
+            pointer-events: auto;
         }
 
         .error-message.show {
             display: block;
+        }
+
+        .error-message button {
+            margin-top: 15px;
+            padding: 10px 25px;
+            background: #e94560;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .error-message button:hover {
+            background: #ff6b8a;
+        }
+
+        .proxy-selector {
+            margin-top: 10px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            max-width: 1200px;
+            margin-left: auto;
+            margin-right: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .proxy-selector label {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .proxy-selector select {
+            padding: 8px 15px;
+            border-radius: 5px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(0, 0, 0, 0.3);
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .proxy-selector select:focus {
+            outline: none;
+            border-color: #e94560;
         }
 
         .controls-hint {
@@ -423,21 +475,33 @@
                         <div class="error-message" id="error-message">
                             <div class="icon">&#9888;</div>
                             <p>Unable to load stream</p>
-                            <p style="font-size: 12px; margin-top: 10px;">Try another quality or channel</p>
+                            <p style="font-size: 12px; margin-top: 10px;">The stream server may be down or blocking requests</p>
+                            <button onclick="retryCurrentChannel()">Retry with different proxy</button>
                         </div>
                         <button class="fullscreen-btn" id="fullscreen-btn">Fullscreen</button>
                     </div>
                 </div>
 
+                <div class="proxy-selector">
+                    <label for="proxy-select">Proxy Server:</label>
+                    <select id="proxy-select" onchange="changeProxy(this.value)">
+                        <option value="0">corsproxy.io (Recommended)</option>
+                        <option value="1">allorigins.win</option>
+                        <option value="2">cors.sh</option>
+                        <option value="3">Direct (No Proxy)</option>
+                    </select>
+                    <span style="font-size: 12px; color: rgba(255,255,255,0.5);">Try different proxy if stream fails</span>
+                </div>
+
                 <div class="now-playing" id="now-playing" style="display: none;">
-                    <img class="now-playing-logo" id="now-playing-logo" src="" alt="">
+                    <img class="now-playing-logo" id="now-playing-logo" src="" alt="" onerror="this.style.display='none'">
                     <div class="now-playing-info">
                         <h3 id="now-playing-name">-</h3>
                         <p id="now-playing-group">-</p>
                     </div>
                 </div>
 
-                <p class="controls-hint">Use video controls to play, pause, adjust volume, and fullscreen</p>
+                <p class="controls-hint">Select a channel from the list. If playback fails, try a different proxy or quality.</p>
             </section>
 
             <aside class="sidebar" id="sidebar">
@@ -447,6 +511,9 @@
     </div>
 
     <script>
+        // Default logo for channels with broken/missing images
+        const DEFAULT_LOGO = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="#1a1a2e" width="100" height="100" rx="10"/><circle cx="50" cy="40" r="20" fill="#e94560"/><rect x="30" y="65" width="40" height="25" rx="3" fill="#e94560"/><circle cx="50" cy="40" r="8" fill="#1a1a2e"/></svg>');
+
         // M3U8 Playlist data embedded
         const playlistData = `#EXTINF:-1,Update file available at IPTV442WEB
 http://maveniptv.net:80/live/ahmedELmetwally85/ah8759946/61321.m3u8
@@ -788,12 +855,22 @@ http://maveniptv.net:80/live/ahmedELmetwally85/ah8759946/283476.m3u8`;
                     const item = document.createElement('div');
                     item.className = 'channel-item';
                     item.innerHTML = `
-                        <img class="channel-logo" src="${channel.logo || 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%23333%22 width=%22100%22 height=%22100%22/><text x=%2250%22 y=%2250%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%23fff%22 font-size=%2240%22>TV</text></svg>'}"
+                        <img class="channel-logo" src="${DEFAULT_LOGO}"
                              alt="${channel.name}"
-                             onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%23333%22 width=%22100%22 height=%22100%22/><text x=%2250%22 y=%2250%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%23fff%22 font-size=%2240%22>TV</text></svg>'">
+                             data-src="${channel.logo || ''}"
+                             onload="if(this.dataset.src && this.src !== this.dataset.src) { this.src = this.dataset.src; }"
+                             onerror="this.onerror=null; this.src='${DEFAULT_LOGO}';">
                         <span class="channel-name">${channel.name}</span>
                         ${channel.quality ? `<span class="quality-badge">${channel.quality}</span>` : ''}
                     `;
+                    // Try to load the actual logo
+                    const img = item.querySelector('.channel-logo');
+                    if (channel.logo) {
+                        const testImg = new Image();
+                        testImg.onload = () => { img.src = channel.logo; };
+                        testImg.onerror = () => { img.src = DEFAULT_LOGO; };
+                        testImg.src = channel.logo;
+                    }
                     item.addEventListener('click', () => playChannel(channel));
                     channelList.appendChild(item);
                 });
@@ -808,20 +885,43 @@ http://maveniptv.net:80/live/ahmedELmetwally85/ah8759946/283476.m3u8`;
             }
         }
 
+        // CORS Proxy options for HTTP streams on HTTPS pages
+        const CORS_PROXIES = [
+            (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+            (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+            (url) => `https://proxy.cors.sh/${url}`,
+            (url) => url, // Direct (no proxy) - may not work on HTTPS pages
+        ];
+        let currentProxyIndex = 0;
+
+        function getProxiedUrl(url) {
+            // If already HTTPS, return as-is
+            if (url.startsWith('https://')) {
+                return url;
+            }
+            // Use CORS proxy for HTTP URLs (or direct if selected)
+            return CORS_PROXIES[currentProxyIndex](url);
+        }
+
         // Video player
         let hls = null;
+        let currentChannel = null;
         const video = document.getElementById('video-player');
         const overlay = document.getElementById('player-overlay');
         const loading = document.getElementById('loading');
         const errorMessage = document.getElementById('error-message');
         const nowPlaying = document.getElementById('now-playing');
 
-        function playChannel(channel) {
+        function playChannel(channel, retryWithNextProxy = false) {
+            currentChannel = channel;
+
             // Update active state
             document.querySelectorAll('.channel-item').forEach(item => {
                 item.classList.remove('active');
             });
-            event.currentTarget.classList.add('active');
+            if (event && event.currentTarget) {
+                event.currentTarget.classList.add('active');
+            }
 
             // Show loading, hide others
             overlay.classList.add('hidden');
@@ -840,15 +940,25 @@ http://maveniptv.net:80/live/ahmedELmetwally85/ah8759946/283476.m3u8`;
                 hls = null;
             }
 
+            // Get proxied URL for HTTPS compatibility
+            const streamUrl = getProxiedUrl(channel.url);
+            console.log('Loading stream:', streamUrl);
+
             // Play the stream
             if (Hls.isSupported()) {
                 hls = new Hls({
                     enableWorker: true,
-                    lowLatencyMode: true,
-                    backBufferLength: 90
+                    lowLatencyMode: false,
+                    backBufferLength: 90,
+                    maxBufferLength: 30,
+                    maxMaxBufferLength: 60,
+                    xhrSetup: function(xhr, url) {
+                        // Handle relative URLs in HLS segments
+                        xhr.open('GET', url, true);
+                    }
                 });
 
-                hls.loadSource(channel.url);
+                hls.loadSource(streamUrl);
                 hls.attachMedia(video);
 
                 hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -857,15 +967,24 @@ http://maveniptv.net:80/live/ahmedELmetwally85/ah8759946/283476.m3u8`;
                 });
 
                 hls.on(Hls.Events.ERROR, (event, data) => {
+                    console.error('HLS Error:', data);
                     if (data.fatal) {
-                        loading.classList.remove('show');
-                        errorMessage.classList.add('show');
-                        console.error('HLS Error:', data);
+                        // Try next proxy on fatal error
+                        if (currentProxyIndex < CORS_PROXIES.length - 1) {
+                            currentProxyIndex++;
+                            console.log('Trying next proxy:', currentProxyIndex);
+                            playChannel(currentChannel, true);
+                        } else {
+                            // Reset proxy index for next attempt
+                            currentProxyIndex = 0;
+                            loading.classList.remove('show');
+                            errorMessage.classList.add('show');
+                        }
                     }
                 });
             } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                 // Native HLS support (Safari)
-                video.src = channel.url;
+                video.src = streamUrl;
                 video.addEventListener('loadedmetadata', () => {
                     loading.classList.remove('show');
                     video.play().catch(e => console.log('Autoplay prevented:', e));
@@ -874,6 +993,23 @@ http://maveniptv.net:80/live/ahmedELmetwally85/ah8759946/283476.m3u8`;
                     loading.classList.remove('show');
                     errorMessage.classList.add('show');
                 });
+            }
+        }
+
+        // Retry with next proxy
+        function retryCurrentChannel() {
+            if (currentChannel) {
+                currentProxyIndex = (currentProxyIndex + 1) % (CORS_PROXIES.length + 1);
+                document.getElementById('proxy-select').value = currentProxyIndex;
+                playChannel(currentChannel);
+            }
+        }
+
+        // Change proxy manually
+        function changeProxy(index) {
+            currentProxyIndex = parseInt(index);
+            if (currentChannel) {
+                playChannel(currentChannel);
             }
         }
 
